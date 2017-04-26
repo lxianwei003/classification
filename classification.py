@@ -32,9 +32,9 @@ def create_pipeline(filename, batch_size, num_epochs=None):
     return example_batch, label_batch
 
 x_train_batch, y_train_batch = create_pipeline('train.csv', 50, num_epochs=1000)
-x_test, y_test = create_pipeline('test.csv', 60)
+x_test, y_test = create_pipeline('test.csv', 1000)
 global_step = tf.Variable(0, trainable=False)
-learning_rate = 0.5
+learning_rate = 0.1
 
 # Input
 x = tf.placeholder(tf.float32, shape=[None,1138])
@@ -42,17 +42,17 @@ y = tf.placeholder(tf.int32, [None])
 
 # 3层神经网络
 #layer1
-w1 = tf.Variable(tf.random_normal([1138, 512], stddev=0.5))#512 0.933 64：0.88
+w1 = tf.Variable(tf.random_normal([1138, 512], stddev=0.5))#
 b1 = tf.Variable(tf.random_normal([512]))
-output1 = tf.matmul(x, w1) + b1
+output1 = tf.nn.tanh(tf.matmul(x, w1) + b1)
 
 #layer2
 w2 = tf.Variable(tf.random_normal([512, 1024], stddev=.5))#1024
 b2 = tf.Variable(tf.random_normal([1024]))
-output2 = tf.nn.softmax(tf.matmul(output1, w2) + b2)
+output2 = tf.nn.sigmoid(tf.matmul(output1, w2) + b2)
 
 #layer3
-w3 = tf.Variable(tf.random_normal([1024, 2], stddev=.5))
+w3 = tf.Variable(tf.random_normal([1024, 2], stddev=.1))
 b3 = tf.Variable(tf.random_normal([2]))
 output = tf.nn.softmax(tf.matmul(output2, w3) + b3)
 
@@ -67,7 +67,7 @@ tf.summary.scalar('Accuracy', accuracy)
 
 init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
 merged_summary = tf.summary.merge_all()
-
+#
 sess = tf.Session()
 train_writer = tf.summary.FileWriter('logs/train', sess.graph)
 test_writer = tf.summary.FileWriter('logs/test', sess.graph)
@@ -82,26 +82,26 @@ try:
     curr_x_test_batch, curr_y_test_batch = sess.run([x_test, y_test])
     while not coord.should_stop():
         # Run training steps or whatever
-        curr_x_train_batch, curr_y_train_batch = sess.run([x_train_batch, y_train_batch])
-        sess.run(train_step, feed_dict={
-            x: curr_x_train_batch,
-            y: curr_y_train_batch
-        })
-
-        count += 1
-        ce, summary = sess.run([cross_entropy, merged_summary], feed_dict={
-            x: curr_x_train_batch,
-            y: curr_y_train_batch
-        })
-
-        train_writer.add_summary(summary, count)
-
+        for i in range(3000):
+            curr_x_train_batch, curr_y_train_batch = sess.run([x_train_batch, y_train_batch])
+            if i%50==0:
+                train_accuracy = sess.run(accuracy,feed_dict={
+                    x: curr_x_train_batch,
+                    y: curr_y_train_batch
+                })
+                print('step %d, training accuracy %g' % (i, train_accuracy))
+            sess.run(train_step,feed_dict={
+                x: curr_x_train_batch,
+                y: curr_y_train_batch
+            })
+    #count += 1
+    #train_writer.add_summary(summary, count)
         ce, test_acc, test_summary = sess.run([cross_entropy, accuracy, merged_summary], feed_dict={
             x: curr_x_test_batch,
             y: curr_y_test_batch
         })
-        test_writer.add_summary(summary, count)
-        print('Batch', count, 'J = ', ce, '测试准确率=', test_acc)
+        #test_writer.add_summary(summary, count)
+        print('J = ', ce, '测试准确率=', test_acc)
 except tf.errors.OutOfRangeError:
     print('Done training -- epoch limit reached')
 finally:
@@ -111,4 +111,3 @@ finally:
 # Wait for threads to finish.
 coord.join(threads)
 sess.close()
-
